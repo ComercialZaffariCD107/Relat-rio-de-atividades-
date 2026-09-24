@@ -6,7 +6,6 @@
 <title>Relatórios de Tarefas · CD-107</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
   --navy:#0E1B3D; --navy-2:#16265A; --amber:#E48B00; --bg:#EEF1F8;
@@ -293,7 +292,11 @@ function dataHora(){
   return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
 
-function montarTabela({titulo, col1, col2, linhas, totalVol, totalTar}){
+const specs = {};
+function montarTabela(spec){
+  const {id, titulo, col1, col2, linhas, totalVol, totalTar} = spec;
+  spec.sub = "CD-107 · " + dataHora();
+  specs[id] = spec;
   const max = Math.max(...linhas.map(l => l.volumes), 1);
   const corpo = linhas.map(l => {
     const w = (l.volumes / max * 100).toFixed(1);
@@ -307,7 +310,7 @@ function montarTabela({titulo, col1, col2, linhas, totalVol, totalTar}){
   }).join("");
   return `<table>
     <tr class="titulo"><td colspan="5">${titulo}</td></tr>
-    <tr class="sub"><td colspan="5">CD-107 · ${dataHora()}</td></tr>
+    <tr class="sub"><td colspan="5">${spec.sub}</td></tr>
     <tr><th>${col1}</th><th>${col2}</th><th>Tarefas</th><th>Volumes</th><th>% Volumes</th></tr>
     ${corpo}
     <tr class="total"><td colspan="2" class="c">Total</td><td class="n">${fmt(totalTar)}</td>
@@ -326,7 +329,7 @@ function render(){
     .sort((a,b) => a.ordem - b.ordem || a.dep - b.dep || b.volumes - a.volumes)
     .map(g => ({c1:g.dep, c2:g.nome, tarefas:g.tarefas, volumes:g.volumes}));
   document.getElementById("relTarefas").innerHTML =
-    montarTabela({titulo:"Relatório de Tarefas", col1:"Depósito", col2:"Agrupamento", linhas:l1, totalVol, totalTar});
+    montarTabela({id:"relTarefas", titulo:"Relatório de Tarefas", col1:"Depósito", col2:"Agrupamento", linhas:l1, totalVol, totalTar});
 
   // 2) Por linha de separação
   const m2 = new Map();
@@ -335,7 +338,7 @@ function render(){
     .sort((a,b) => a.ordem - b.ordem || b.volumes - a.volumes)
     .map(g => ({c1:g.pav, c2:g.linha, tarefas:g.tarefas, volumes:g.volumes}));
   document.getElementById("relLinhas").innerHTML =
-    montarTabela({titulo:"Tarefas por Linha de Separação", col1:"Pavilhão", col2:"Linha de Separação", linhas:l2, totalVol, totalTar});
+    montarTabela({id:"relLinhas", titulo:"Tarefas por Linha de Separação", col1:"Pavilhão", col2:"Linha de Separação", linhas:l2, totalVol, totalTar});
 
   // 3) Por loja
   const m3 = new Map();
@@ -348,7 +351,7 @@ function render(){
     .sort((a,b) => a.n - b.n || a.agrup.localeCompare(b.agrup))
     .map(g => ({c1:g.loja, c2:g.agrup, tarefas:g.tarefas, volumes:g.volumes}));
   document.getElementById("relLojas").innerHTML =
-    montarTabela({titulo:"Relatório de Atividades por Loja", col1:"Loja", col2:"Agrupamento", linhas:l3, totalVol, totalTar});
+    montarTabela({id:"relLojas", titulo:"Relatório de Atividades por Loja", col1:"Loja", col2:"Agrupamento", linhas:l3, totalVol, totalTar});
 
   document.getElementById("stArquivo").textContent = nomeArquivo;
   document.getElementById("stTarefas").textContent = fmt(totalTar);
@@ -454,33 +457,118 @@ function toast(msg){
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2600);
 }
-async function gerarBlob(id){
-  const canvas = await html2canvas(document.getElementById(id), {scale:2, backgroundColor:"#ffffff"});
-  return new Promise(res => canvas.toBlob(res, "image/png"));
+// Desenha o relatório direto no canvas (sem biblioteca externa)
+function desenharRelatorio(s){
+  const S = 2, PADX = 10, H_TIT = 34, H_SUB = 18, H_HEAD = 28, H_ROW = 25, H_TOT = 28;
+  const fTit = "bold 22px Arial", fSub = "12px Arial", fHead = "bold 14px Arial", fRow = "14px Arial", fTot = "bold 14px Arial";
+  const medir = document.createElement("canvas").getContext("2d");
+  const larg = (txt, f) => { medir.font = f; return medir.measureText(String(txt)).width; };
+  const cab = [s.col1, s.col2, "Tarefas", "Volumes", "% Volumes"];
+  const celulas = s.linhas.map(l => [String(l.c1), String(l.c2), fmt(l.tarefas), fmt(Math.round(l.volumes)),
+    fmtPct(s.totalVol ? l.volumes / s.totalVol : 0)]);
+  const tot = ["Total", "", fmt(s.totalTar), fmt(Math.round(s.totalVol)), "100,0%"];
+  const minimos = [70, 150, 70, 90, 90];
+  const cols = cab.map((c, i) => Math.ceil(Math.max(minimos[i], larg(c, fHead),
+    ...celulas.map(r => larg(r[i], fRow)), i > 1 ? larg(tot[i], fTot) : 0) + PADX * 2));
+  let W = cols.reduce((a, b) => a + b, 0);
+  const wTit = larg(s.titulo, fTit) + 40;
+  if(wTit > W){ cols[1] += Math.ceil(wTit - W); W = cols.reduce((a, b) => a + b, 0); }
+  const H = H_TIT + H_SUB + H_HEAD + celulas.length * H_ROW + H_TOT;
+
+  const cv = document.createElement("canvas");
+  cv.width = W * S; cv.height = H * S;
+  const g = cv.getContext("2d");
+  g.scale(S, S);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.textBaseline = "middle";
+
+  // título
+  g.fillStyle = "#262626"; g.fillRect(0, 0, W, H_TIT + H_SUB);
+  g.fillStyle = "#fff"; g.font = fTit; g.textAlign = "center"; g.fillText(s.titulo, W / 2, H_TIT / 2 + 4);
+  g.fillStyle = "#C9C9C9"; g.font = fSub; g.fillText(s.sub, W / 2, H_TIT + H_SUB / 2 - 1);
+
+  const xs = []; cols.reduce((x, w, i) => (xs[i] = x, x + w), 0);
+  const grade = (y, h, cor) => {
+    g.strokeStyle = cor; g.lineWidth = 1;
+    xs.forEach((x, i) => g.strokeRect(x + .5, y + .5, cols[i] - 1, h - 1));
+  };
+  const texto = (t, i, y, h, alin, f, cor) => {
+    g.font = f; g.fillStyle = cor; g.textAlign = alin;
+    const x = alin === "center" ? xs[i] + cols[i] / 2 : alin === "right" ? xs[i] + cols[i] - PADX : xs[i] + PADX;
+    g.fillText(t, x, y + h / 2 + 1);
+  };
+
+  // cabeçalho
+  let y = H_TIT + H_SUB;
+  g.fillStyle = "#C8862A"; g.fillRect(0, y, W, H_HEAD);
+  grade(y, H_HEAD, "#D9D9D9");
+  cab.forEach((c, i) => texto(c, i, y, H_HEAD, "center", fHead, "#fff"));
+  y += H_HEAD;
+
+  // linhas
+  const max = Math.max(...s.linhas.map(l => l.volumes), 1);
+  celulas.forEach((r, k) => {
+    const wb = (cols[3] - 2) * (s.linhas[k].volumes / max);
+    if(wb > 0){
+      const gr = g.createLinearGradient(xs[3], 0, xs[3] + wb, 0);
+      gr.addColorStop(0, "#E8A33D"); gr.addColorStop(.55, "rgba(232,163,61,.55)"); gr.addColorStop(1, "rgba(232,163,61,.08)");
+      g.fillStyle = gr; g.fillRect(xs[3] + 1, y + 2, wb, H_ROW - 4);
+    }
+    grade(y, H_ROW, "#D9D9D9");
+    texto(r[0], 0, y, H_ROW, "center", fRow, "#000");
+    texto(r[1], 1, y, H_ROW, "left", fRow, "#000");
+    texto(r[2], 2, y, H_ROW, "right", fRow, "#000");
+    texto(r[3], 3, y, H_ROW, "right", fRow, "#000");
+    texto(r[4], 4, y, H_ROW, "right", fRow, "#000");
+    y += H_ROW;
+  });
+
+  // total
+  g.fillStyle = "#262626"; g.fillRect(0, y, W, H_TOT);
+  g.strokeStyle = "#3a3a3a"; g.strokeRect(.5, y + .5, W - 1, H_TOT - 1);
+  g.font = fTot; g.fillStyle = "#fff"; g.textAlign = "center";
+  g.fillText("Total", (cols[0] + cols[1]) / 2, y + H_TOT / 2 + 1);
+  [2, 3, 4].forEach(i => texto(tot[i], i, y, H_TOT, "right", fTot, "#fff"));
+  return cv;
+}
+function gerarBlob(id){
+  const cv = desenharRelatorio(specs[id]);
+  return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("falha ao gerar imagem")), "image/png"));
 }
 function baixar(blob, nome){
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = nome + "_" + new Date().toISOString().slice(0,10) + ".png";
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 async function copiar(id, nome){
   try{
-    if(!navigator.clipboard || !window.ClipboardItem) throw new Error("sem clipboard");
+    if(!window.isSecureContext || !navigator.clipboard || !window.ClipboardItem) throw new Error("sem clipboard");
     await navigator.clipboard.write([new ClipboardItem({"image/png": gerarBlob(id)})]);
     toast("Imagem copiada. Cole no WhatsApp com Ctrl+V.");
   }catch(e){
-    baixar(await gerarBlob(id), nome);
-    toast("Não deu para copiar. A imagem foi baixada.");
+    console.warn("Cópia indisponível, baixando:", e);
+    try{
+      baixar(await gerarBlob(id), nome);
+      toast("O navegador bloqueou a cópia. A imagem foi baixada.");
+    }catch(e2){
+      console.error(e2);
+      toast("Erro ao gerar a imagem: " + e2.message);
+    }
   }
 }
 document.querySelectorAll("[data-copiar]").forEach(b =>
   b.addEventListener("click", () => copiar(b.dataset.copiar, b.nextElementSibling.dataset.nome)));
 document.querySelectorAll("[data-baixar]").forEach(b =>
-  b.addEventListener("click", async () => baixar(await gerarBlob(b.dataset.baixar), b.dataset.nome)));
+  b.addEventListener("click", async () => {
+    try{ baixar(await gerarBlob(b.dataset.baixar), b.dataset.nome); toast("Imagem baixada."); }
+    catch(e){ console.error(e); toast("Erro ao gerar a imagem: " + e.message); }
+  }));
 document.getElementById("btnCopiarTodos").addEventListener("click", async () => {
   for(const [id, nome] of [["relTarefas","resumo_tarefas"],["relLinhas","tarefas_por_linha"],["relLojas","tarefas_por_loja"]]){
     baixar(await gerarBlob(id), nome);
+    await new Promise(r => setTimeout(r, 500));
   }
   toast("3 imagens baixadas.");
 });
