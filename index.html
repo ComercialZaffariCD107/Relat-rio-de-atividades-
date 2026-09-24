@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relatórios de Tarefas · CD-107</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{
+  --navy:#0E1B3D; --navy-2:#16265A; --amber:#E48B00; --bg:#EEF1F8;
+  --text:#1B2340; --muted:#5E6785; --line:#D5DBEA;
+  /* formato do relatório (igual à planilha) */
+  --r-dark:#262626; --r-head:#C8862A; --r-bar:#E8A33D; --r-grid:#D9D9D9;
+  --f-display:'Oswald', 'Arial Narrow', Arial, sans-serif;
+  --f-body:'Inter', Arial, Helvetica, sans-serif;
+  --f-mono:'JetBrains Mono', Consolas, monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--f-body); color:var(--text); background:var(--bg);
+  background-image:radial-gradient(#C9D1E6 1px, transparent 1px); background-size:18px 18px;
+  min-height:100vh;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+header{
+  background:var(--navy); color:#fff; padding:calc(18px + env(safe-area-inset-top,0px)) 24px 18px;
+  border-bottom:3px solid var(--amber);
+}
+header .wrap{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-family:var(--f-display);font-weight:600;font-size:1.45rem;letter-spacing:.02em}
+header small{color:#AFC0EA;font-size:.85rem}
+main{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+
+/* upload */
+.painel{
+  background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;
+  display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;
+}
+.drop{
+  border:2px dashed #B8C3DD;border-radius:8px;padding:18px;text-align:center;cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.drop:hover,.drop.over{border-color:var(--amber);background:#FFF7EA}
+.drop strong{display:block;font-size:1rem;margin-bottom:4px}
+.drop span{color:var(--muted);font-size:.85rem}
+.drop input{display:none}
+.acoes-topo{display:flex;flex-direction:column;gap:8px;min-width:210px}
+button{
+  font-family:var(--f-body);font-weight:600;font-size:.9rem;cursor:pointer;
+  border-radius:7px;padding:10px 14px;border:1px solid transparent;
+}
+button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.btn-navy{background:var(--navy-2);color:#fff}
+.btn-navy:hover{background:var(--navy)}
+.btn-amber{background:var(--amber);color:#fff}
+.btn-amber:hover{background:#C97A00}
+.btn-ghost{background:#fff;color:var(--navy-2);border-color:#B8C3DD}
+.btn-ghost:hover{border-color:var(--navy-2)}
+.status{
+  grid-column:1/-1;font-family:var(--f-mono);font-size:.78rem;color:var(--muted);
+  display:flex;gap:18px;flex-wrap:wrap;
+}
+.status b{color:var(--text)}
+.sync-on{color:#1E8C4E!important}
+
+.vazio{
+  margin-top:26px;text-align:center;color:var(--muted);padding:40px 16px;
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+}
+
+/* grade de relatórios */
+.grade{display:flex;flex-wrap:wrap;gap:26px;margin-top:24px;align-items:flex-start;justify-content:center}
+.bloco{display:flex;flex-direction:column;gap:10px}
+.bloco-acoes{display:flex;gap:8px}
+.bloco-acoes button{flex:1}
+
+/* ===== formato do relatório (captura) ===== */
+.rel{
+  width:520px;background:#fff;font-family:Arial, Helvetica, sans-serif;
+  border:1px solid var(--r-grid);
+}
+.rel table{width:100%;border-collapse:collapse;font-size:14px}
+.rel .titulo td{
+  background:var(--r-dark);color:#fff;text-align:center;font-weight:700;font-size:22px;
+  padding:8px 6px 2px;border:none;
+}
+.rel .sub td{
+  background:var(--r-dark);color:#C9C9C9;text-align:center;font-size:12px;padding:0 6px 8px;border:none;
+}
+.rel th{
+  background:var(--r-head);color:#fff;font-weight:700;padding:5px 8px;border:1px solid var(--r-grid);
+  white-space:nowrap;
+}
+.rel td{padding:4px 8px;border:1px solid var(--r-grid);color:#000;white-space:nowrap}
+.rel td.c{text-align:center}
+.rel td.n{text-align:right;font-variant-numeric:tabular-nums}
+.rel td.bar{position:relative;text-align:right}
+.rel td.bar i{
+  position:absolute;left:0;top:2px;bottom:2px;
+  background:linear-gradient(90deg,var(--r-bar) 0%, rgba(232,163,61,.55) 55%, rgba(232,163,61,.08) 100%);
+}
+.rel td.bar span{position:relative}
+.rel tr.total td{background:var(--r-dark);color:#fff;font-weight:700;border-color:#3a3a3a}
+.rel tr.grupo td{background:#F2F2F2;font-weight:700;color:#333;font-size:13px}
+
+@media (max-width:640px){
+  .painel{grid-template-columns:1fr}
+  .acoes-topo{min-width:0}
+  .grade{justify-content:flex-start}
+  .bloco{width:100%;overflow-x:auto}
+}
+.toast{
+  position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  background:var(--navy);color:#fff;padding:11px 18px;border-radius:8px;font-size:.9rem;
+  border-left:4px solid var(--amber);opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Relatórios de Tarefas</h1>
+    <small>Consulta 70 · Demanda Separação — CD-107</small>
+  </div>
+</header>
+
+<main>
+  <section class="painel">
+    <label class="drop" id="drop">
+      <strong>Solte aqui o TXT da Consulta 70</strong>
+      <span>ou clique para selecionar o arquivo (.txt)</span>
+      <input type="file" id="arquivo" accept=".txt,text/plain">
+    </label>
+    <div class="acoes-topo">
+      <button class="btn-navy" id="btnVincular" type="button">Vincular arquivo (atualização automática)</button>
+      <button class="btn-ghost" id="btnReativar" type="button" hidden>Reativar sincronização</button>
+      <button class="btn-amber" id="btnCopiarTodos" type="button" disabled>Baixar os 3 relatórios</button>
+    </div>
+    <div class="status">
+      <span>Arquivo: <b id="stArquivo">nenhum</b></span>
+      <span>Tarefas: <b id="stTarefas">0</b></span>
+      <span>Volumes: <b id="stVolumes">0</b></span>
+      <span id="stSync">Sincronização: desligada</span>
+    </div>
+  </section>
+
+  <div class="vazio" id="vazio">Carregue o arquivo da Consulta 70 para gerar os relatórios.</div>
+
+  <div class="grade" id="grade" hidden>
+    <div class="bloco">
+      <div id="relTarefas" class="rel"></div>
+      <div class="bloco-acoes">
+        <button class="btn-amber" data-copiar="relTarefas" type="button">Copiar para WhatsApp</button>
+        <button class="btn-ghost" data-baixar="relTarefas" data-nome="resumo_tarefas" type="button">Baixar PNG</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div id="relLinhas" class="rel"></div>
+      <div class="bloco-acoes">
+        <button class="btn-amber" data-copiar="relLinhas" type="button">Copiar para WhatsApp</button>
+        <button class="btn-ghost" data-baixar="relLinhas" data-nome="tarefas_por_linha" type="button">Baixar PNG</button>
+      </div>
+    </div>
+    <div class="bloco">
+      <div id="relLojas" class="rel"></div>
+      <div class="bloco-acoes">
+        <button class="btn-amber" data-copiar="relLojas" type="button">Copiar para WhatsApp</button>
+        <button class="btn-ghost" data-baixar="relLojas" data-nome="tarefas_por_loja" type="button">Baixar PNG</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// LEITURA — Consulta 70 (Demanda Separação)
+// TXT ; ISO-8859-1 ; 17 colunas:
+// BOX;CODTIPATIVIDADE;INDMODOSEPAR;NROCARGA;NROEMPRESA;DESTINO;
+// CODDEPOSSEPAR;NROPALETE;SEQLOTE;LINHA_SEPARACAO;PESO;VOLUME(m3);
+// ITENS;VOLUME(cx);DTAHORGERACAO;DTAHORGERAPALETE;DTAHORRETIRADA
+// Tarefa = 1 linha do arquivo · Volumes = coluna 14 (caixas)
+// ============================================================
+let dados = [];
+let nomeArquivo = "";
+
+const fmt = n => (n || 0).toLocaleString("pt-BR");
+const fmtPct = n => (n * 100).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}) + "%";
+
+function norm(s){
+  return (s || "").toString().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+}
+function num(s){
+  const t = (s || "").toString().trim();
+  if(!t) return 0;
+  // aceita 1.234,5 / 1234,5 / 1234.5
+  const limpo = t.includes(",") ? t.replace(/\./g,"").replace(",",".") : t;
+  return parseFloat(limpo) || 0;
+}
+
+function parseConsulta70(texto){
+  const linhas = texto.split(/\r?\n/).filter(l => l.trim().length);
+  if(!linhas.length) return [];
+  const cab = linhas[0].split(";").map(norm);
+  const achar = (nomes, padrao) => {
+    for(const n of nomes){ const i = cab.indexOf(n); if(i > -1) return i; }
+    return padrao;
+  };
+  const temCab = cab.includes("DESTINO") || cab.includes("LINHA_SEPARACAO");
+  const I = {
+    empresa: achar(["NROEMPRESA"],4),
+    destino: achar(["DESTINO"],5),
+    dep:     achar(["CODDEPOSSEPAR"],6),
+    linha:   achar(["LINHA_SEPARACAO"],9),
+    itens:   achar(["QTDITENS","ITENS"],12),
+    volCx:   13
+  };
+  const corpo = temCab ? linhas.slice(1) : linhas;
+  const out = [];
+  corpo.forEach(l => {
+    const c = l.split(";");
+    if(c.length < 14) return;
+    const destino = (c[I.destino] || "").trim();
+    const dep = parseInt(c[I.dep],10) || 0;
+    out.push({
+      destino,
+      dep,
+      linha: (c[I.linha] || "").trim() || "(sem linha)",
+      itens: num(c[I.itens]),
+      volumes: num(c[I.volCx]),
+      agrup: agrupamentoDestino(destino),
+      loja: lojaDestino(destino)
+    });
+  });
+  return out;
+}
+
+// "Normal (Picking Não Sorter) - 21-STOK 21" -> "Picking Não Sorter"
+// "Picking Sorter - 21/09/26 10:21"          -> "Picking Sorter"
+function agrupamentoDestino(destino){
+  const m = destino.match(/\(([^)]+)\)/);
+  if(m) return m[1].trim();
+  const p = destino.split(" - ")[0].trim();
+  return p || "(sem destino)";
+}
+// loja só existe quando o destino traz "NN-FILIAL" / "NN-STOK"
+function lojaDestino(destino){
+  const partes = destino.split(" - ");
+  if(partes.length < 2) return null;
+  const m = partes.slice(1).join(" - ").match(/^\s*(\d+)\s*-\s*([A-Za-zÀ-ú]+)/);
+  if(!m) return null;
+  return { num: parseInt(m[1],10), rotulo: m[1].padStart(2,"0") + " - " + m[2].toUpperCase() };
+}
+
+// ============================================================
+// AGRUPAMENTOS
+// ============================================================
+function categoriaResumo(d){
+  if(d.dep === 2) return {dep:2, nome:"Perecível", ordem:20};
+  if(d.dep === 3) return {dep:3, nome:"Bebidas",   ordem:30};
+  const n = norm(d.destino);
+  if(n.includes("NAO SORTER")) return {dep:d.dep||1, nome:"Picking Não Sorter", ordem:2};
+  if(n.includes("SORTER"))     return {dep:d.dep||1, nome:"Picking Sorter", ordem:1};
+  return {dep:d.dep||1, nome:d.agrup, ordem:5};
+}
+
+function pavilhaoLinha(d){
+  const l = norm(d.linha);
+  if(l.startsWith("PV1")) return {nome:"Pavilhão 1", ordem:1};
+  if(l.startsWith("PV2")) return {nome:"Pavilhão 2", ordem:2};
+  if(l.includes("SORTER")) return {nome:"Sorter", ordem:3};
+  if(d.dep === 2) return {nome:"Perecível", ordem:4};
+  if(d.dep === 3) return {nome:"Bebidas", ordem:5};
+  return {nome:"Outros", ordem:6};
+}
+
+function somar(mapa, chave, base, d){
+  if(!mapa.has(chave)) mapa.set(chave, {...base, tarefas:0, volumes:0});
+  const g = mapa.get(chave); g.tarefas++; g.volumes += d.volumes;
+}
+
+// ============================================================
+// RENDER — mesmo formato da planilha
+// ============================================================
+function dataHora(){
+  const d = new Date();
+  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+
+function montarTabela({titulo, col1, col2, linhas, totalVol, totalTar}){
+  const max = Math.max(...linhas.map(l => l.volumes), 1);
+  const corpo = linhas.map(l => {
+    const w = (l.volumes / max * 100).toFixed(1);
+    return `<tr>
+      <td class="c">${l.c1}</td>
+      <td>${l.c2}</td>
+      <td class="n">${fmt(l.tarefas)}</td>
+      <td class="bar"><i style="width:${w}%"></i><span>${fmt(Math.round(l.volumes))}</span></td>
+      <td class="n">${fmtPct(totalVol ? l.volumes/totalVol : 0)}</td>
+    </tr>`;
+  }).join("");
+  return `<table>
+    <tr class="titulo"><td colspan="5">${titulo}</td></tr>
+    <tr class="sub"><td colspan="5">CD-107 · ${dataHora()}</td></tr>
+    <tr><th>${col1}</th><th>${col2}</th><th>Tarefas</th><th>Volumes</th><th>% Volumes</th></tr>
+    ${corpo}
+    <tr class="total"><td colspan="2" class="c">Total</td><td class="n">${fmt(totalTar)}</td>
+      <td class="n">${fmt(Math.round(totalVol))}</td><td class="n">100,0%</td></tr>
+  </table>`;
+}
+
+function render(){
+  const totalTar = dados.length;
+  const totalVol = dados.reduce((s,d) => s + d.volumes, 0);
+
+  // 1) Resumo de tarefas
+  const m1 = new Map();
+  dados.forEach(d => { const c = categoriaResumo(d); somar(m1, c.dep+"|"+c.nome, c, d); });
+  const l1 = [...m1.values()]
+    .sort((a,b) => a.ordem - b.ordem || a.dep - b.dep || b.volumes - a.volumes)
+    .map(g => ({c1:g.dep, c2:g.nome, tarefas:g.tarefas, volumes:g.volumes}));
+  document.getElementById("relTarefas").innerHTML =
+    montarTabela({titulo:"Relatório de Tarefas", col1:"Depósito", col2:"Agrupamento", linhas:l1, totalVol, totalTar});
+
+  // 2) Por linha de separação
+  const m2 = new Map();
+  dados.forEach(d => { const p = pavilhaoLinha(d); somar(m2, p.nome+"|"+d.linha, {pav:p.nome, ordem:p.ordem, linha:d.linha}, d); });
+  const l2 = [...m2.values()]
+    .sort((a,b) => a.ordem - b.ordem || b.volumes - a.volumes)
+    .map(g => ({c1:g.pav, c2:g.linha, tarefas:g.tarefas, volumes:g.volumes}));
+  document.getElementById("relLinhas").innerHTML =
+    montarTabela({titulo:"Tarefas por Linha de Separação", col1:"Pavilhão", col2:"Linha de Separação", linhas:l2, totalVol, totalTar});
+
+  // 3) Por loja
+  const m3 = new Map();
+  dados.forEach(d => {
+    const loja = d.loja ? d.loja.rotulo : "Sem loja (ondas)";
+    const n = d.loja ? d.loja.num : 99999;
+    somar(m3, loja+"|"+d.agrup, {loja, n, agrup:d.agrup}, d);
+  });
+  const l3 = [...m3.values()]
+    .sort((a,b) => a.n - b.n || a.agrup.localeCompare(b.agrup))
+    .map(g => ({c1:g.loja, c2:g.agrup, tarefas:g.tarefas, volumes:g.volumes}));
+  document.getElementById("relLojas").innerHTML =
+    montarTabela({titulo:"Relatório de Atividades por Loja", col1:"Loja", col2:"Agrupamento", linhas:l3, totalVol, totalTar});
+
+  document.getElementById("stArquivo").textContent = nomeArquivo;
+  document.getElementById("stTarefas").textContent = fmt(totalTar);
+  document.getElementById("stVolumes").textContent = fmt(Math.round(totalVol));
+  document.getElementById("vazio").hidden = !!totalTar;
+  document.getElementById("grade").hidden = !totalTar;
+  document.getElementById("btnCopiarTodos").disabled = !totalTar;
+  if(!totalTar) document.getElementById("vazio").textContent =
+    "Nenhuma linha válida encontrada. Confira se o arquivo é a Consulta 70 (TXT separado por ponto e vírgula).";
+}
+
+// ============================================================
+// ARQUIVO (upload / arrastar)
+// ============================================================
+function lerTexto(file){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsText(file, "ISO-8859-1");
+  });
+}
+async function carregar(file){
+  try{
+    nomeArquivo = file.name;
+    dados = parseConsulta70(await lerTexto(file));
+    render();
+  }catch(e){
+    console.error(e);
+    toast("Não foi possível ler o arquivo. Selecione o TXT da Consulta 70.");
+  }
+}
+const drop = document.getElementById("drop");
+document.getElementById("arquivo").addEventListener("change", e => { if(e.target.files[0]) carregar(e.target.files[0]); });
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if(f) carregar(f); });
+
+// ============================================================
+// SINCRONIZAÇÃO AUTOMÁTICA (File System Access API + IndexedDB)
+// ============================================================
+const DB = "rel-tarefas-c70", STORE = "handles", KEY = "consulta70";
+let handle = null, ultimoMod = 0, timer = null;
+
+function idb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbSet(v){ try{ const db = await idb(); db.transaction(STORE,"readwrite").objectStore(STORE).put(v, KEY); }catch(e){} }
+async function idbGet(){
+  try{
+    const db = await idb();
+    return await new Promise(res => { const r = db.transaction(STORE).objectStore(STORE).get(KEY); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+  }catch(e){ return null; }
+}
+function setSync(on, txt){
+  const el = document.getElementById("stSync");
+  el.textContent = "Sincronização: " + txt;
+  el.classList.toggle("sync-on", on);
+}
+async function checar(){
+  if(!handle) return;
+  try{
+    const f = await handle.getFile();
+    if(f.lastModified !== ultimoMod){ ultimoMod = f.lastModified; await carregar(f); }
+  }catch(e){ setSync(false, "arquivo indisponível"); }
+}
+function iniciarSync(){
+  clearInterval(timer);
+  setSync(true, "ativa (" + handle.name + ")");
+  document.getElementById("btnReativar").hidden = true;
+  ultimoMod = 0; checar();
+  timer = setInterval(checar, 5000);
+}
+document.getElementById("btnVincular").addEventListener("click", async () => {
+  if(!window.showOpenFilePicker){ toast("Seu navegador não permite vincular arquivo. Use o Chrome ou o Edge."); return; }
+  try{
+    [handle] = await showOpenFilePicker({types:[{description:"Consulta 70", accept:{"text/plain":[".txt"]}}]});
+    await idbSet(handle); iniciarSync();
+  }catch(e){}
+});
+document.getElementById("btnReativar").addEventListener("click", async () => {
+  if(handle && await handle.requestPermission({mode:"read"}) === "granted") iniciarSync();
+});
+(async () => {
+  if(!window.showOpenFilePicker) return;
+  const h = await idbGet();
+  if(!h) return;
+  handle = h;
+  const p = await h.queryPermission({mode:"read"});
+  if(p === "granted") iniciarSync();
+  else { document.getElementById("btnReativar").hidden = false; setSync(false, "clique em Reativar (" + h.name + ")"); }
+})();
+
+// ============================================================
+// IMAGEM PARA WHATSAPP
+// ============================================================
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+async function gerarBlob(id){
+  const canvas = await html2canvas(document.getElementById(id), {scale:2, backgroundColor:"#ffffff"});
+  return new Promise(res => canvas.toBlob(res, "image/png"));
+}
+function baixar(blob, nome){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nome + "_" + new Date().toISOString().slice(0,10) + ".png";
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function copiar(id, nome){
+  try{
+    if(!navigator.clipboard || !window.ClipboardItem) throw new Error("sem clipboard");
+    await navigator.clipboard.write([new ClipboardItem({"image/png": gerarBlob(id)})]);
+    toast("Imagem copiada. Cole no WhatsApp com Ctrl+V.");
+  }catch(e){
+    baixar(await gerarBlob(id), nome);
+    toast("Não deu para copiar. A imagem foi baixada.");
+  }
+}
+document.querySelectorAll("[data-copiar]").forEach(b =>
+  b.addEventListener("click", () => copiar(b.dataset.copiar, b.nextElementSibling.dataset.nome)));
+document.querySelectorAll("[data-baixar]").forEach(b =>
+  b.addEventListener("click", async () => baixar(await gerarBlob(b.dataset.baixar), b.dataset.nome)));
+document.getElementById("btnCopiarTodos").addEventListener("click", async () => {
+  for(const [id, nome] of [["relTarefas","resumo_tarefas"],["relLinhas","tarefas_por_linha"],["relLojas","tarefas_por_loja"]]){
+    baixar(await gerarBlob(id), nome);
+  }
+  toast("3 imagens baixadas.");
+});
+</script>
+</body>
+</html>
